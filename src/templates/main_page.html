@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+
+<script>
+var running = false;
+var last_image = "";
+
+function guid() {
+    function s4() {
+        return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+    }
+    return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+}
+
+function refresh_thumbnail()
+{
+    document.images["thumbnail"].src = "/thumbnail/preview.jpg?" + guid();
+}
+
+function set_home()
+{
+    $.ajax({
+        type: "GET",
+        url: "set_home",
+        success: refresh_status
+    });
+}
+
+function command(cmd)
+{
+    var distance = $("#timelapse_distance").val();
+    var rate = $("#timelapse_rate").val();
+    var interval = $("#timelapse_interval").val();
+
+    $.ajax({
+        type: "POST",
+        url: cmd,
+        data: JSON.stringify({distance: distance, rate: rate, interval: interval}),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: refresh_status
+    });
+}
+
+function move(direction)
+{
+    var step = $("#distance").val();
+    var speed = $("#speed").val();
+
+    if (direction == "backward")
+    {
+        step = "-" + step;
+    }
+
+    $.ajax({
+        type: "POST",
+        url: "move", 
+        data: JSON.stringify({step: step, speed: speed}), 
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: refresh_status
+    });
+}
+
+function refresh_status()
+{
+    $.get("status", function(data, status) {
+        $("#position").html(data["position"]);
+        $("#state").html(data["state"]);
+        if (last_image != data["last_image"])
+        {
+            last_image = data["last_image"];
+            document.images["thumbnail"].src = "/thumbnail/" + last_image;
+        }
+    });
+}
+
+$(document).ready(function() {
+    refresh_status();
+    setInterval(refresh_status, 1000);
+});
+
+</script>
+
+<meta charset="UTF-8">
+    <title>title</title>
+</head>
+<body>
+
+<table id="status" class="table">
+    <tr>
+        <td>Position</td>
+        <td id="position"></td>
+    </tr>
+    <tr>
+        <td>State</td>
+        <td id="state"></td>
+    </tr>
+</table>
+
+<div>
+    <img id="thumbnail" height="300" src="/thumbnail.jpg" />
+</div>
+
+<button type="button" class="btn btn-primary" onclick="refresh_thumbnail()">Preview</button>
+<button type="button" class="btn btn-primary" onclick="set_home()">Zero Rail</button>
+
+<div class="container">
+    <div class="text-center">
+        <div class="form-inline">
+            <label for="usr">Speed:</label>
+                <input type="text" class="form-control" id="speed" value="100" style="width:100px">
+            <label for="usr">Distance:</label>
+                <input type="text" class="form-control" id="distance" value="50" style="width:100px">
+            <label for="usr">Min Distance:</label>
+                <input type="text" class="form-control" id="distance" value="0" style="width:100px">
+            <label for="usr">Max Distance:</label>
+                <input type="text" class="form-control" id="distance" value="-1" style="width:100px">
+        </div>
+        <div class="form-inline">
+            <label for="usr">Timelapse Distance:</label>
+                <input type="text" class="form-control" id="timelapse_distance" value="1in" style="width:100px">
+            <label for="usr">Per Time:</label>
+                <input type="text" class="form-control" id="timelapse_rate" value="60sec" style="width:100px">
+            <label for="usr">Timelapse Interval:</label>
+                <input type="text" class="form-control" id="timelapse_interval" value="20" style="width:100px">
+        </div>
+        <div class="player" style="margin:10px">
+            <button type="button" id="button_bw" class="btn" onclick='move("backward")'>
+                <i class="fa fa-backward"></i>
+            </button>
+
+            <button type="button" id="button_play" class="btn" onclick='command("start")'>
+              <i class="fa fa-play"></i>
+            </button>
+
+            <button type="button" id="button_play" class="btn" onclick='command("pause")'>
+              <i class="fa fa-pause"></i>
+            </button>
+            
+            <button type="button" id="button_stop" class="btn" onclick='command("stop")'>
+              <i class="fa fa-stop"></i>
+            </button>
+
+            <button type="button" id="button_fw" class="btn" onclick='move("forward")'>
+                <i class="fa fa-forward"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

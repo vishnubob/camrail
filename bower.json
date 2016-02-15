@@ -1,0 +1,7 @@
+{
+    "name": "camrail",
+    "dependencies": {
+        "jquery": "^2.2.0",
+        "bootstrap": "^3.0.0"
+    }
+}

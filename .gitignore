@@ -1,0 +1,6 @@
+*.pyc
+*.stl
+*.scad
+*.gcode
+.nfs*
+.*DS*
