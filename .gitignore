@@ -4,3 +4,5 @@
 *.gcode
 .nfs*
 .*DS*
+*.JPG
+*.CR2

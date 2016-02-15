@@ -274,10 +274,20 @@ class CameraDirector(object):
 
     def tick(self):
         if self.start_ts == None or self.pause:
-            return
+            return False
         delta = time.time() - self.start_ts
         shot_num = int(math.floor(delta / self.interval))
         if shot_num == self.last_shot:
-            return
+            return False
         self.last_shot = shot_num
         self.camera.capture(True)
+        return True
+
+    def pretrigger(self, offset=2):
+        if self.start_ts == None or self.pause:
+            return False
+        delta = time.time() - self.start_ts + offset
+        shot_num = int(math.floor(delta / self.interval))
+        if shot_num == self.last_shot:
+            return False
+        return True

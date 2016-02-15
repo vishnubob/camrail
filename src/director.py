@@ -16,7 +16,8 @@ class Director(threading.Thread):
         self.running = False
 
     def tick(self):
-        self.camera_director.tick()
+        if self.camera_director.tick():
+            return True
         return self.rail_director.tick()
 
     def get_pause(self):
@@ -37,6 +38,8 @@ class Director(threading.Thread):
         self.running = True
         while self.running:
             time.sleep(.01)
+            if not self.camera_director.pretrigger():
+                continue
             if not self.tick():
                 break
         self.running = False

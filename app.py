@@ -85,17 +85,19 @@ def get_status():
         "position": rail.position,
         "state": state,
         "last_image": camera.last_image,
+        "stepper": "ON" if rail.enable else "OFF",
     }
     return jsonify(**ret)
 
 @app.route('/set_home')
 def set_home():
     rail.set_zero()
-    ret = {
-        "position": rail.position
-    }
-    return jsonify(**ret)
+    return get_status()
 
+@app.route('/toggle_stepper')
+def toggle_stepper():
+    rail.enable = not rail.enable
+    return get_status()
 
 @app.route('/move', methods=["GET", "POST"])
 def move():
