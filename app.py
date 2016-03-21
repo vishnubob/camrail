@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request, session, g, redirect, url_for, abort, flash, jsonify
 from flask.ext.mako import MakoTemplates, render_template
+import pickle
 import camrail
 
 ROOT_PATH = os.path.split(camrail.__file__)[0]
@@ -25,8 +26,10 @@ bootstrap_server()
 camera = camrail.Camera()
 rail = camrail.CameraRail()
 #camera["main.imgsettings.imageformat"] = "RAW + Small Normal JPEG"
-camera["main.imgsettings.imageformat"] = "RAW"
+#camera["main.imgsettings.imageformat"] = "RAW"
 director = None
+
+OUTDIR = "/ginkgo/users/giles/code/camrail"
 
 @app.route('/')
 def main_page():
@@ -38,9 +41,7 @@ def start():
     if director != None and director.running:
         return get_status()
     info = request.json
-    director = camrail.Director(camera, rail)
-    director.rail_director.schedule(info["distance"], info["rate"])
-    director.camera_director.schedule(int(info["interval"]))
+    director = camrail.Director(info["interval"], info["step"], camera, rail, prefix=OUTDIR)
     director.start()
     return get_status()
 
@@ -66,6 +67,7 @@ def get_thumbnail():
 
 @app.route('/thumbnail/<image>')
 def get_specific_thumbnail(image):
+    image = os.path.join(OUTDIR, image)
     thumbnail = camera.get_thumbnail(filename=image)
     return thumbnail
 
@@ -81,17 +83,18 @@ def get_status():
         state = "paused"
     else:
         state = "running"
+    last_image = camera.last_image if camera.last_image else ""
     ret = {
         "position": rail.position,
         "state": state,
-        "last_image": camera.last_image,
+        "last_image": os.path.split(last_image)[-1],
         "stepper": "ON" if rail.enable else "OFF",
     }
     return jsonify(**ret)
 
 @app.route('/set_home')
 def set_home():
-    rail.set_zero()
+    rail.set_current_position()
     return get_status()
 
 @app.route('/toggle_stepper')
@@ -102,13 +105,42 @@ def toggle_stepper():
 @app.route('/move', methods=["GET", "POST"])
 def move():
     info = request.json
+    print info
     rail.speed = int(info["speed"])
-    try:
-        rail.relative = int(info["step"])
-    except:
-        rail.relative = info["step"]
+    pos = str(info["position"])
+    if pos[0] == '@':
+        pos = pos[1:]
+        rail.position = pos
+    else:
+        rail.relative = pos
     return get_status()
+
+cache_fn = os.path.join(os.path.expanduser("~"), ".camrail_cache")
+
+def save_cache_state():
+    info = {
+        "position": rail.position
+    }
+    with open(cache_fn, 'wb') as fh:
+        pickle.dump(info, fh)
+
+def load_cache_state():
+    global rail
+    info = {
+        "position": 0,
+    }
+    if os.path.exists(cache_fn):
+        with open(cache_fn, 'rb') as fh:
+            try:
+                info = pickle.load(fh)
+            except:
+                pass
+    rail.set_current_position(info["position"]) 
 
 if __name__ == "__main__":
     app._static_folder = os.path.join(ROOT_PATH, "static")
-    app.run(host="0.0.0.0")
+    load_cache_state()
+    try:
+        app.run(host="0.0.0.0")
+    finally:
+        save_cache_state()

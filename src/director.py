@@ -4,42 +4,53 @@ import rail
 import camera
 import time
 import threading
+import logging
 
 class Director(threading.Thread):
-    def __init__(self, _camera, _rail):
+    def __init__(self, interval, step, _camera, _rail, prefix=""):
         super(Director, self).__init__()
         self.camera = _camera
         self.rail = _rail
-        self.camera_director = camera.CameraDirector(self.camera)
-        self.rail_director = rail.RailDirector(self.rail)
+        self.interval = float(interval)
+        self.step = step
+        self._pause = False
         self.daemon = True
         self.running = False
-
-    def tick(self):
-        if self.camera_director.tick():
-            return True
-        return self.rail_director.tick()
+        self.prefix = prefix
 
     def get_pause(self):
-        return self.rail_director.pause
+        self._pause
     
     def set_pause(self, val):
-        self.camera_director.pause = val
-        self.rail_director.pause = val
+        self._pause = val
+        if self._pause:
+            self._pause_ts = time.time()
+        else:
+            delta = max(0, self._pause_ts - self.next_event)
+            self.next_event = time.time() + delta
     pause = property(get_pause, set_pause)
 
     def stop(self):
         self.running = False
         self.join()
 
+    def trigger(self):
+        now = time.time()
+        self.next_event = now + self.interval
+        pos = self.rail.position
+        fn = self.camera.capture(copy=True, prefix=self.prefix)
+        msg = "%s: Captured %s at step %s\n" % (time.strftime("%c"), fn, pos)
+        with open("camrail.txt", 'a') as fh:
+            fh.write(msg)
+        self.camera.delete_all_files_on_camera()
+        self.rail.relative = self.step
+
     def run(self):
-        self.camera_director.start()
-        self.rail_director.start()
         self.running = True
+        self.start_ts = time.time()
+        self.trigger()
         while self.running:
+            if not self.pause:
+                if time.time() > self.next_event:
+                    self.trigger()
             time.sleep(.01)
-            if not self.camera_director.pretrigger():
-                continue
-            if not self.tick():
-                break
-        self.running = False

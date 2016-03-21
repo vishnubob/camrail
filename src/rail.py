@@ -11,12 +11,11 @@ DEFAULT_UNIT = units.parse_expression("steps")
 
 def unit(val, **kw):
     _unit = kw.get("unit", DEFAULT_UNIT)
+    val = units.parse_expression(val)
     if type(val) != units.Quantity:
         if type(val) in (int, float):
             assert _unit, "value %r of type '%r' requires a unit definition" % (val, type(val))
             val = val * _unit
-        elif type(val) in (str, unicode):
-            val = units.parse_expression(val)
         else:
             raise TypeError, "I don't know how to convert type '%s' to a unit" % str(type(val))
     assert type(val) == units.Quantity, "%r != %r" % (type(val), units.Quantity)
@@ -34,19 +33,21 @@ class CameraRail(object):
     pin_dir = 4
     forward = 1
     backward = 0
+    max_position = 12700
+    min_position = 0
 
     def __init__(self):
         self.pi = pigpio.pi()
         self.pi.set_mode(self.pin_step, pigpio.OUTPUT)
         self.pi.set_mode(self.pin_dir, pigpio.OUTPUT)
         self.pi.set_mode(self.pin_enable, pigpio.OUTPUT)
-        self._direction = self.forward
+        self.direction = self.forward
         self._position = 0
         self.pulse_len = 5
         self.enable = True
         self.speed = 100
 
-    def set_zero(self, val=0):
+    def set_current_position(self, val=0):
         self._position = val
 
     def get_position(self):
@@ -54,6 +55,7 @@ class CameraRail(object):
     
     def set_position(self, pos):
         pos = steps(pos)
+        pos = min(self.max_position, max(self.min_position, pos))
         self.move(pos)
     position = property(get_position, set_position)
 

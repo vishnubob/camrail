@@ -184,7 +184,7 @@ class Camera(object):
         filename = filename if filename != None else self.last_image
         if refresh or filename == None:
             fn = self.capture(copy=True)
-            filename = self.last_image
+            filename = fn
         with open(filename, 'rb') as fh:
             if filename.lower().endswith("cr2"):
                 exif = exifread.process_file(fh)
@@ -193,28 +193,34 @@ class Camera(object):
                 jpeg = fh.read()
         return jpeg
 
-    def copy_file(self, file_path, prefix=""):
+    def copy_file(self, file_path, prefix="", stubfn=""):
         (camera, context) = self.camera
-        target = prefix + file_path.name
-        print('Copying image to %s' % target)
+        target_fn = file_path.name
+        target_fn = os.path.splitext(target_fn)
+        target_fn = target_fn[0] + stubfn + target_fn[1]
+        target_fn = os.path.join(prefix, target_fn)
+        print('Copying image to %s' % target_fn)
         res = gp.gp_camera_file_get(camera, file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL, context)
         camera_file = gp.check_result(res)
-        res = gp.gp_file_save(camera_file, target)
+        res = gp.gp_file_save(camera_file, target_fn)
         gp.check_result(res)
-        self.last_image = target
-        return target
+        self.last_image = target_fn
+        return target_fn
 
     @property
     def camera(self):
         if self._camera == None:
-            reset_usb(self.port)
             self._context = gp.gp_context_new()
             self._camera = gp.check_result(gp.gp_camera_new())
             gp.check_result(gp.gp_camera_init(self._camera, self._context))
         return (self._camera, self._context)
 
-    def dump(self, stubfn=''):
-        self.download_all_files_on_camera(stubfn)
+    def reset(self):
+        self._camera = None
+        reset_usb(self.port)
+
+    def dump(self, prefix='', stubfn=''):
+        self.download_all_files_on_camera(prefix=prefix, stubfn=stubfn)
         self.delete_all_files_on_camera()
 
     def get_files_on_camera(self, path=None):
@@ -232,9 +238,10 @@ class Camera(object):
         res = gp.check_result(gp.gp_camera_folder_delete_all(camera, path, context))
         return res
     
-    def download_all_files_on_camera(self, stubfn=''):
+    def download_all_files_on_camera(self, prefix='', stubfn=''):
         pics = self.get_files_on_camera()
         (camera, context) = self.camera
+        files = []
         for (path, fn) in pics:
             if fn.lower().endswith("cr2"):
                 _type = gp.GP_FILE_TYPE_RAW
@@ -242,7 +249,7 @@ class Camera(object):
                 _type = gp.GP_FILE_TYPE_NORMAL
             target_fn = os.path.splitext(fn)
             target_fn = target_fn[0] + stubfn + target_fn[1]
-            print target_fn
+            target_fn = os.path.join(prefix, target_fn)
             camera_file = gp.check_result(gp.gp_camera_file_get(camera, path, fn, _type, context))
             gp.check_result(gp.gp_file_save(camera_file, target_fn))
 
@@ -280,7 +287,15 @@ class CameraDirector(object):
         if shot_num == self.last_shot:
             return False
         self.last_shot = shot_num
-        self.camera.capture(True)
+        retry = 5
+        while retry:
+            try:
+                self.camera.capture(True)
+                break
+            except gp.GPhoto2Error:
+                traceback.print_exc()
+                self.camera.reset()
+                continue
         return True
 
     def pretrigger(self, offset=2):
